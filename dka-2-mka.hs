@@ -39,7 +39,7 @@ printJoinList list separator = putStrLn (intercalate separator (map printf list)
 printTransitions ts = mapM (printTransition) ts
 printTransition t = putStrLn (printf "%s,%c,%s" (src t) (symbol t) (dst t))
 
--- print whole fsm 
+-- print whole fsm
 printFsm fsm = do
 	printJoinList (Set.toList (states fsm)) ","
 	printf "%s\n" (startState fsm)
@@ -50,9 +50,11 @@ printFsm fsm = do
 parseStates lines = Set.fromList (split (lines !! 0))
 parseStartStates lines = split (lines !! 1) !! 0
 parseEndStates lines = Set.fromList (split (lines !! 2))
+prepareTransitionLines lines = filter (not . null) (drop 3 lines)
 parseTransitions lines = pt lines []
 	where
 		pt [] transitions = transitions
+		pt ([]:_) transitions = transitions
 		pt (s:xs) transitions = pt xs ((pt' s):transitions)
 		pt' line = Transition
 			{
@@ -61,7 +63,8 @@ parseTransitions lines = pt lines []
 				dst = (head (tail (tail (split line))))
 			}
 parseAlphabet lines = pa lines Set.empty
-	where 
+	where
+		pa ([]:_) set = set
 		pa lines set = Set.fromList (map (\line -> (split line) !! 1 !! 0) lines)
 
 -- parse  whole fsm
@@ -70,8 +73,8 @@ parseFsm lines = FSM
 		states = (parseStates lines),
 		startState = (parseStartStates lines),
 		endStates = (parseEndStates lines),
-		transitions = (parseTransitions (drop 3 lines)),
-		alphabet = (parseAlphabet (drop 3 lines))
+		transitions = (parseTransitions (prepareTransitionLines lines)),
+		alphabet = (parseAlphabet (prepareTransitionLines lines))
 	}
 
 stateTransitions state transitions classes = filter (\x -> (src x) == state) transitions
@@ -81,7 +84,7 @@ stateClass transition classes = (symbol transition, second (head (filter (\x -> 
 classListEnum classList = cLE (classExtract classList) 0
 	where
 		cLE [] _ = []
-		cLE (x:xs) number = (classEnum x number) ++ (cLE xs (succ number)) 
+		cLE (x:xs) number = (classEnum x number) ++ (cLE xs (succ number))
 		classGroup list = groupBy ((==) `on` third) (sortBy (comparing third) list) -- group by same classes for dst
 		classExtract list = map (\ekvclass -> map (\item -> (first item)) ekvclass) (classGroup list) -- extract states in classes
 		classEnum ekvclass number = map (\x -> (x, number, [])) ekvclass -- enumerate states in class
@@ -98,13 +101,13 @@ reduce fsm = fsm
 	-- {
 	-- 	states =
 	-- 	startState =
-	-- 	endStates = 
+	-- 	endStates =
 	-- 	transitions =
 	-- }
 
 -- ekvivalentClasses states endStates transitions = ekv [(0, endStates), (1, states `Set.intersection` endStates)] transitions
--- 	where 
--- 		ekv = 
+-- 	where
+-- 		ekv =
 removeUnreachable fsm = fsm
 	{
 		states = reachable (startState fsm) (transitions fsm),
