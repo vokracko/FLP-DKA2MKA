@@ -2,6 +2,7 @@ run: prepare
 	./run.sh
 
 prepare: bin check
+	mkdir -p res
 	./prepare.sh
 
 bin:
