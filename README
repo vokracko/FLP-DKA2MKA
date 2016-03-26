@@ -1,0 +1,18 @@
+Implementace
+==========================================
+Implementace předpokládá, že na vstupu bude vždy validní deterministický automat
+bez nedostupných stavů.
+
+Testy
+==========================================
+Vstupy testů jsou směsicí testů nalezených na internetu bez zřejmého autora.
+Automatizovaný skript na porovnávání je mojí vlastní prací a využívá knihovny OpenFST [1]
+pro porovnávání a minimalizaci automatů.
+Celá testovací sada je i s detailnějším popisem publikována [2].
+
+> cd test
+> make prepare
+> make
+
+[1] http://openfst.org/
+[2] https://github.com/vokracko/FLP-DKA-2-MKA-test
