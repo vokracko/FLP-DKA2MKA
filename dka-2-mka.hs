@@ -140,10 +140,10 @@ reduceFirstStep fsm = cLE [Set.toList (endStates fsm), Set.toList ((states fsm) 
 main = do
 	args <- getArgs
 
-	if (length args) /= 2
+	if (length args) > 2 || (length args < 1)
 		then error "Invalid argument"
 		else do
-			handle <- openFile (head (tail args)) ReadMode
+			handle <- getHandle args
 			contents <- hGetContents handle
 			let fsm = parseFsm (lines contents)
 			case (head args) of
@@ -153,4 +153,7 @@ main = do
 				otherwise -> error "Invalid argument"
 
 			hClose handle
-
+getHandle args = do
+		if (length args) == 1
+			then return stdin
+			else openFile (head (tail args)) ReadMode
