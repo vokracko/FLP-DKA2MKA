@@ -20,7 +20,8 @@ data FSM = FSM
 		transitions :: [Transition],
 		startState :: [Char],
 		endStates :: Set.Set[Char],
-		alphabet :: Set.Set Char
+		alphabet :: Set.Set Char,
+		sinkAdded :: Bool
 	} deriving (Show)
 
 third (_,_,x) = x
@@ -78,38 +79,25 @@ parseFsm lines = FSM
 		startState = (parseStartState lines),
 		endStates = (parseEndStates lines),
 		transitions = (parseTransitions (prepareTransitionLines lines)),
-		alphabet = (parseAlphabet (prepareTransitionLines lines))
+		alphabet = (parseAlphabet (prepareTransitionLines lines)),
+		sinkAdded = False
 	}
 
 -- make well defined fsm from fsm (add sink state and transitions to sink for all missingCombinations)
-sink fsm = fsm { transitions = ((transitions fsm) ++ (sinkCombinations fsm)), states = Set.insert "" (states fsm) } -- add sink state ""
+sink fsm = if (missingCombinations fsm) == [] -- already well defined, adding another sink state would broke it
+	then fsm
+	else fsm { transitions = ((transitions fsm) ++ (sinkCombinations fsm)), states = Set.insert "" (states fsm), sinkAdded = True } -- add sink state ""
 	where
 		allCombinations fsm = [(src, symbol) | src <- [""] ++ (Set.toList (states fsm)), symbol <- (Set.toList (alphabet fsm))] -- generate all possible combinations of (src, symbol)
 		existingCombinations fsm = map (\tr -> (src tr, symbol tr)) (transitions fsm) -- generate all exesting combinations of (src, symbol)
 		missingCombinations fsm = (allCombinations fsm) \\ (existingCombinations fsm) -- find combinations that are missing in fsm
 		sinkCombinations fsm = map (\x -> Transition (fst x) "" (snd x)) (missingCombinations fsm) -- construct missing transitions
 
--- remove unreachable states and associated transitions from fsm
-removeUnreachable fsm = fsm
-	{
-		states = reachable (startState fsm) (transitions fsm),
-		endStates = (endStates fsm) `Set.intersection` (reachable (startState fsm) (transitions fsm)),
-		transitions = reachableTransitions (transitions fsm) (reachable (startState fsm) (transitions fsm))
-	}
-	where
-		reachable start transitions = reachable' (Set.empty) (Set.singleton start) transitions -- start state is always reachable
-		reachable' prev curr transitions = if prev == curr
-			then curr -- if no more reachable states have been added stop
-			else reachable' curr (step curr transitions) transitions -- else find reachle states from currenly reachable
-		step curr transitions = (Set.fromList (map (dst) (filter (\x -> (src x) `Set.member` curr) transitions))) `Set.union` curr -- new reachable states
-		reachableTransitions transitions states = filter (\x -> (src x) `Set.member` states) transitions -- filter only transition from reachable states
-
-
 -- expects result of one step decomposition, returns classes for next step
 classListEnum classList = cLE (sort (classExtract classList)) 1
 cLE [] _ = []
 cLE (x:xs) number = (classEnum x number) ++ (cLE xs (succ number))
-classGroup list = groupBy ((==) `on` secondThird) (sortBy (comparing third) list) -- group by same classes for dst
+classGroup list = groupBy ((==) `on` secondThird) (sortBy (comparing third) (sortBy (comparing second) (map (\(a,b,c) -> (a,b, sortBy (comparing fst) c)) list))) -- group by same classes for dst
 classExtract list = map (\ekvclass -> map (\item -> (first item)) ekvclass) (classGroup list) -- extract states in classes
 classEnum ekvclass number = map (\x -> (x, number, [])) ekvclass -- enumerate states in class
 
@@ -117,25 +105,35 @@ stateTransitionClasses state transitions classes = map (\x -> stateClass x class
 stateTransitions state transitions = filter (\x -> (src x) == state) transitions -- transition from state
 stateClass transition classes = (symbol transition, second (head (filter (\x -> (first x) == (dst transition)) classes))) -- (symbol, ekvClass of dst)
 
-minimalize fsm = reduce (removeUnreachable fsm)
+minimalize fsm = reduce (sink fsm)
 
 reduce fsm = fsm
 	{
-		states = Set.fromList (map (\x -> show (second x)) (reduce' fsm)), -- all classes from reduced fsm
+		states = if (sinkAdded fsm)
+			then Set.delete (sinkClass fsm) (Set.fromList ((map (\x -> show (second x)) (reduce' fsm)))) -- all classes from reduced fsm, sink removed
+			else Set.fromList ((map (\x -> show (second x)) (reduce' fsm))), -- all classes from reduced fsm
 		startState = show (second (head (filter (\x -> (first x) == (startState fsm)) (reduce' fsm)))), -- class where original start state is
 		endStates = Set.fromList (map (\x -> show (second x)) (filter (\x -> (first x) `Set.member` (endStates fsm)) (reduce' fsm))), -- all classes containing original end states
-		transitions = nub (ekvClassTransitions (reduce' fsm) (transitions fsm))
+		transitions = if (sinkAdded fsm)
+			then filter (\x -> (dst x) /= (sinkClass fsm)) (nub (ekvClassTransitions (reduce' fsm) (transitions fsm)))
+			else nub (ekvClassTransitions (reduce' fsm) (transitions fsm))
 	}
 
+sinkClass fsm = (show (stateClass' "" (reduce' fsm)))
 stateClass' state classes = second (head (filter (\x -> (first x) == state) classes))
 ekvClassTransitions classes transitions = map (\x -> Transition { symbol = (symbol x), src = show (stateClass' (src x) classes), dst = show (stateClass' (dst x) classes) }) transitions -- ("A", b, "C") replace with (ekvClass "A", b, ekvclass "C")
 reduce' fsm = reduceStep [] (reduceFirstStep fsm) (transitions fsm)
 reduceStep prevClasses classes transitions = if prevClasses == classes
 	then classes
 	else reduceStep classes (classListEnum (reduceStep' classes transitions)) transitions
-	where 
+	where
 		reduceStep' classes transitions = map (\x -> (first x, second x, stateTransitionClasses (first x) transitions classes)) classes
 reduceFirstStep fsm = cLE [Set.toList (endStates fsm), Set.toList ((states fsm) `Set.difference` (endStates fsm))] 1
+
+getHandle args = do
+		if (length args) == 1
+			then return stdin
+			else openFile (head (tail args)) ReadMode
 
 main = do
 	args <- getArgs
@@ -153,7 +151,4 @@ main = do
 				otherwise -> error "Invalid argument"
 
 			hClose handle
-getHandle args = do
-		if (length args) == 1
-			then return stdin
-			else openFile (head (tail args)) ReadMode
+
