@@ -1,14 +1,19 @@
 #!/bin/bash
 
+# fstisomorphic - determines if FSTs A and B have the same states and transitions irrespective of numbering and order
+# fstequal - determines if FSTs A and B have the same states and transitions with the same numbering and order 
+# fstequivalent - determines if acceptors A and B accept the same strings with the same weights
+
 function compareFsm
 {
 	input=$1
 	minimal=${input/plain/minimal/}
+	original=${input/plain/original/}
 	res=${input/plain/res/}
 
 	../dka-2-mka -i $input > $res.plain
 	./fstcompile.sh $res.plain $res.plain.fst
-	fstequivalent $res.plain.fst $minimal # minimal is always equivalent with coresponding non minimal
+	fstisomorphic $res.plain.fst $original 
 
 	if [ $? -eq 0 ] ; then
 		st="\033[1;32mPASS\033[0m"
@@ -18,7 +23,7 @@ function compareFsm
 
 	../dka-2-mka -t $input > $res.minimal
 	./fstcompile.sh $res.minimal $res.minimal.fst
-	fstequivalent $res.minimal.fst $minimal
+	fstisomorphic $res.minimal.fst $minimal 
 
 	if [ $? -eq 0 ] ; then
 		nd="\033[1;32mPASS\033[0m"
