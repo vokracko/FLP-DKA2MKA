@@ -1,6 +1,6 @@
 
 all:
-	ghc dka-2-mka.hs
+	ghc --make dka-2-mka.hs
 
 clean:
 	rm -f dka-2-mka{,.o,.hi} *.zip 2>/dev/null
