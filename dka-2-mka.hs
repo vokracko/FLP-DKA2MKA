@@ -1,3 +1,7 @@
+-- FLP - DKA-2-MKA
+-- xvokra00
+-- Lukáš Vokráčko
+
 import System.IO
 import Text.Printf
 import Data.List
